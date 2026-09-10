@@ -1,0 +1,185 @@
+[project]
+site_name = "Fastro · FastAPI Boilerplate"
+site_description = "Production-ready FastAPI starter with sessions, OAuth, SQLAdmin, Taskiq, Redis caching, and a plugin-aware CLI."
+site_url = "https://benavlabs.github.io/FastAPI-boilerplate"
+docs_dir = "docs"
+site_dir = "site"
+
+copyright = "&copy; 2026 Benav Labs"
+
+extra_css = ["stylesheets/extra.css"]
+
+# ==============================================================================
+# Theme
+# ==============================================================================
+
+[project.theme]
+variant = "modern"
+
+logo = "assets/FastAPI-boilerplate.png"
+favicon = "assets/FastAPI-boilerplate.png"
+
+font.text = "Ubuntu"
+font.code = "JetBrains Mono"
+
+features = [
+    "navigation.instant",
+    "navigation.instant.prefetch",
+    "navigation.tabs",
+    "navigation.indexes",
+    "navigation.top",
+    "navigation.footer",
+    "search.suggest",
+    "search.highlight",
+    "content.code.copy",
+    "content.code.annotate",
+    "toc.follow",
+]
+
+# Light/dark palette — uses brand colors via stylesheets/extra.css
+[[project.theme.palette]]
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+# ==============================================================================
+# Footer / extra
+# ==============================================================================
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/benavlabs/fastapi-boilerplate"
+name = "FastAPI boilerplate on GitHub"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/python"
+link = "https://pypi.org/project/fastapi/"
+name = "FastAPI on PyPI"
+
+# ==============================================================================
+# Navigation
+# ==============================================================================
+
+[[project.nav]]
+"Home" = "index.md"
+
+[[project.nav]]
+"Fastro vs FastroAI" = "fastro-vs-fastroai.md"
+
+[[project.nav]]
+"Getting Started" = [
+    { "Overview" = "getting-started/index.md" },
+    { "Installation" = "getting-started/installation.md" },
+    { "Configuration" = "getting-started/configuration.md" },
+    { "First Run" = "getting-started/first-run.md" },
+]
+
+[[project.nav]]
+"User Guide" = [
+    { "Overview" = "user-guide/index.md" },
+    { "Project Structure" = "user-guide/project-structure.md" },
+    { "Configuration" = [
+        { "Overview" = "user-guide/configuration/index.md" },
+        { "Environment Variables" = "user-guide/configuration/environment-variables.md" },
+        { "Settings Classes" = "user-guide/configuration/settings-classes.md" },
+        { "Docker Setup" = "user-guide/configuration/docker-setup.md" },
+        { "Environment-Specific" = "user-guide/configuration/environment-specific.md" },
+    ] },
+    { "Database" = [
+        { "Overview" = "user-guide/database/index.md" },
+        { "Models" = "user-guide/database/models.md" },
+        { "Schemas" = "user-guide/database/schemas.md" },
+        { "CRUD Operations" = "user-guide/database/crud.md" },
+        { "Migrations" = "user-guide/database/migrations.md" },
+        { "Neon (Serverless Postgres)" = "user-guide/database/neon.md" },
+    ] },
+    { "API" = [
+        { "Overview" = "user-guide/api/index.md" },
+        { "Endpoints" = "user-guide/api/endpoints.md" },
+        { "Pagination" = "user-guide/api/pagination.md" },
+        { "Exceptions" = "user-guide/api/exceptions.md" },
+        { "Versioning" = "user-guide/api/versioning.md" },
+    ] },
+    { "Authentication" = [
+        { "Overview" = "user-guide/authentication/index.md" },
+        { "Sessions" = "user-guide/authentication/sessions.md" },
+        { "User Management" = "user-guide/authentication/user-management.md" },
+        { "Permissions" = "user-guide/authentication/permissions.md" },
+    ] },
+    { "Admin Panel" = [
+        { "Overview" = "user-guide/admin-panel/index.md" },
+        { "Configuration" = "user-guide/admin-panel/configuration.md" },
+        { "Adding Models" = "user-guide/admin-panel/adding-models.md" },
+        { "User Management" = "user-guide/admin-panel/user-management.md" },
+    ] },
+    { "Caching" = [
+        { "Overview" = "user-guide/caching/index.md" },
+        { "Redis Cache" = "user-guide/caching/redis-cache.md" },
+        { "Client Cache" = "user-guide/caching/client-cache.md" },
+        { "Cache Strategies" = "user-guide/caching/cache-strategies.md" },
+    ] },
+    { "Background Tasks" = "user-guide/background-tasks/index.md" },
+    { "Rate Limiting" = "user-guide/rate-limiting/index.md" },
+    { "Development" = "user-guide/development.md" },
+    { "Production" = "user-guide/production.md" },
+    { "Testing" = "user-guide/testing.md" },
+]
+
+[[project.nav]]
+"CLI" = [
+    { "Overview" = "cli/index.md" },
+    { "Commands" = "cli/commands.md" },
+    { "Plugins" = "cli/plugins.md" },
+]
+
+[[project.nav]]
+"Changelog" = "changelog.md"
+
+[[project.nav]]
+"Community" = "community.md"
+
+# ==============================================================================
+# Markdown extensions
+# ==============================================================================
+
+[[project.markdown_extensions]]
+admonition = {}
+
+[[project.markdown_extensions]]
+"pymdownx.details" = {}
+
+[[project.markdown_extensions]]
+"pymdownx.highlight" = { anchor_linenums = true, line_spans = "__span", pygments_lang_class = true }
+
+[[project.markdown_extensions]]
+"pymdownx.inlinehilite" = {}
+
+[[project.markdown_extensions]]
+"pymdownx.snippets" = {}
+
+[[project.markdown_extensions]]
+"pymdownx.superfences" = {}
+
+[[project.markdown_extensions]]
+"pymdownx.tabbed" = { alternate_style = true }
+
+[[project.markdown_extensions]]
+"pymdownx.tasklist" = { custom_checkbox = true }
+
+[[project.markdown_extensions]]
+"toc" = { permalink = true }
+
+[[project.markdown_extensions]]
+"attr_list" = {}
+
+[[project.markdown_extensions]]
+"md_in_html" = {}

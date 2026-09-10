@@ -1,0 +1,35 @@
+name: Type Checking
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Sync workspace
+        run: uv sync --all-packages --all-extras
+
+      - name: Mypy (backend)
+        run: cd backend && uv run --no-sync mypy src --config-file pyproject.toml
+        env:
+          ENVIRONMENT: local
+          SECRET_KEY: test-secret-key-for-testing-only
+
+      - name: Mypy (cli)
+        run: cd cli && uv run --no-sync mypy -p cli
+        env:
+          ENVIRONMENT: local
+          SECRET_KEY: test-secret-key-for-testing-only

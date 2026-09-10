@@ -1,0 +1,364 @@
+# Database Migrations
+
+Schema changes are managed with [Alembic](https://alembic.sqlalchemy.org/). This guide covers the day-to-day workflow plus the production safety net the boilerplate adds on top.
+
+## Two Modes: Auto-Create vs Migrations
+
+The boilerplate supports both. They are **alternatives**, not complements:
+
+### `CREATE_TABLES_ON_STARTUP=true` — auto-create
+
+The app calls `Base.metadata.create_all` on startup, creating any missing tables from the current models.
+
+| Use when | Don't use when |
+|----------|----------------|
+| Local dev with a throwaway database | You need version-controlled schema changes |
+| Tests with an ephemeral testcontainer | Multiple developers share a database |
+| Quick prototyping | You're deploying to staging/production |
+
+Driven by the `CREATE_TABLES_ON_STARTUP` env var, defaulting to `true`. The factory honors it via `create_application(create_tables_on_startup=...)`.
+
+### Alembic migrations
+
+Tracked, reviewable, reversible schema changes — what you want for anything beyond a local sandbox. Set `CREATE_TABLES_ON_STARTUP=false` (or leave it true; `create_all` is a no-op on existing tables) and run migrations explicitly.
+
+## Configuration
+
+### `backend/alembic.ini`
+
+The shipped config sets:
+
+- `script_location = %(here)s/migrations` — migration files live in `backend/migrations/`
+- `prepend_sys_path = .` — so `src.*` resolves when running from `backend/`
+- `sqlalchemy.url = driver://user:pass@localhost/dbname` — a placeholder; the real URL is overridden in `env.py`
+
+### `backend/migrations/env.py`
+
+The boilerplate's `env.py` does three things you'll want to know about:
+
+```python
+from src.infrastructure.config.settings import settings
+from src.infrastructure.database.session import Base
+
+# 1. The real DATABASE_URL is taken from app settings (which build it from POSTGRES_*)
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+
+
+# 2. Production safety check — refuses to run unless explicitly opted in
+def validate_production_migration():
+    if os.getenv("ENVIRONMENT") == "production":
+        if os.getenv("CONFIRM_PRODUCTION_MIGRATION") != "yes":
+            raise Exception(
+                "Production migration requires CONFIRM_PRODUCTION_MIGRATION=yes"
+            )
+
+
+# 3. Auto-import every module under src.modules so Alembic sees all models
+import_models("src.modules")
+target_metadata = Base.metadata
+```
+
+The auto-import walks `src.modules` recursively — you don't need to maintain a list of model imports for `--autogenerate` to find new tables. Just create the model file under `modules/<feature>/models.py` and it's discovered.
+
+## Workflow
+
+All commands run from `backend/`:
+
+```bash
+cd backend
+```
+
+### 1. Generate a Migration
+
+After you change a model:
+
+```bash
+uv run alembic revision --autogenerate -m "Add user profile fields"
+```
+
+Alembic compares the current models with the database schema and writes a new file in `backend/migrations/versions/`.
+
+### 2. Review the Generated Migration
+
+Always read it before applying. Autogenerate isn't perfect — it can miss enum changes, server-side defaults, computed columns, and complex constraint renames. A typical generated file:
+
+```python
+"""Add user profile fields
+
+Revision ID: abc123def456
+Revises: prev_revision_id
+"""
+
+from alembic import op
+import sqlalchemy as sa
+
+revision = "abc123def456"
+down_revision = "prev_revision_id"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.add_column("user", sa.Column("bio", sa.String(500), nullable=True))
+    op.add_column("user", sa.Column("website", sa.String(255), nullable=True))
+    op.create_index("ix_user_website", "user", ["website"])
+
+
+def downgrade() -> None:
+    op.drop_index("ix_user_website", "user")
+    op.drop_column("user", "website")
+    op.drop_column("user", "bio")
+```
+
+### 3. Apply
+
+```bash
+# All pending migrations
+uv run alembic upgrade head
+
+# Step forward N revisions
+uv run alembic upgrade +2
+
+# Up to a specific revision
+uv run alembic upgrade abc123def456
+```
+
+### 4. Inspect
+
+```bash
+uv run alembic current      # current revision
+uv run alembic history      # full history
+uv run alembic heads        # any branched heads
+uv run alembic show <rev>   # details about a specific revision
+```
+
+### 5. Roll Back
+
+```bash
+uv run alembic downgrade -1                # one step back
+uv run alembic downgrade <revision>        # to a specific point
+uv run alembic downgrade base              # all the way back
+```
+
+Test your downgrade in dev — it's the cheapest way to spot a missing `op.drop_index` or similar.
+
+## Common Scenarios
+
+### Adding a New Model
+
+1. **Create the module folder** with the model:
+
+    ```python
+    # backend/src/modules/widgets/models.py
+    from sqlalchemy import String
+    from sqlalchemy.orm import Mapped, mapped_column
+
+    from ...infrastructure.database.models import SoftDeleteMixin, TimestampMixin
+    from ...infrastructure.database.session import Base
+
+
+    class Widget(Base, TimestampMixin, SoftDeleteMixin):
+        __tablename__ = "widgets"
+
+        id: Mapped[int] = mapped_column(
+            "id", autoincrement=True, nullable=False, unique=True,
+            primary_key=True, init=False,
+        )
+        name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    ```
+
+2. **Register it in `modules/__init__.py`** so other code can import it:
+
+    ```python
+    from .widgets.models import Widget
+    ```
+
+    (The migrations env.py auto-imports `src.modules`, so the new model is picked up regardless — but adding it to `modules/__init__.py` keeps the public API explicit.)
+
+3. **Generate and apply:**
+
+    ```bash
+    uv run alembic revision --autogenerate -m "Add widgets table"
+    # review backend/migrations/versions/<timestamp>_add_widgets_table.py
+    uv run alembic upgrade head
+    ```
+
+### Adding a Foreign Key
+
+```python
+# Add to the model
+class Widget(Base, ...):
+    owner_id: Mapped[int] = mapped_column(ForeignKey("user.id"), index=True)
+```
+
+```bash
+uv run alembic revision --autogenerate -m "Add widget.owner_id"
+```
+
+The generated migration will include the column, the FK constraint, and the index.
+
+### Data Migrations
+
+Sometimes a schema change needs a data backfill. Edit the autogenerated upgrade to include it:
+
+```python
+def upgrade() -> None:
+    # 1. Add nullable column
+    op.add_column("post", sa.Column("category_id", sa.Integer(), nullable=True))
+
+    # 2. Backfill
+    bind = op.get_bind()
+    bind.execute(sa.text(
+        "INSERT INTO category (name, slug) VALUES ('General', 'general')"
+    ))
+    default_id = bind.execute(
+        sa.text("SELECT id FROM category WHERE slug = 'general'")
+    ).scalar_one()
+    bind.execute(sa.text(
+        "UPDATE post SET category_id = :cid WHERE category_id IS NULL"
+    ), {"cid": default_id})
+
+    # 3. Tighten the constraint
+    op.alter_column("post", "category_id", nullable=False)
+    op.create_foreign_key(
+        "fk_post_category_id", "post", "category", ["category_id"], ["id"]
+    )
+```
+
+### Renaming a Column
+
+```python
+def upgrade() -> None:
+    op.alter_column("user", "full_name", new_column_name="name")
+
+
+def downgrade() -> None:
+    op.alter_column("user", "name", new_column_name="full_name")
+```
+
+For columns with foreign keys or indexes, autogenerate may produce drop-and-recreate instead of a rename. Edit it to use `alter_column` if you want to preserve data.
+
+### Dropping a Table
+
+```python
+def upgrade() -> None:
+    op.drop_table("old_table")
+
+
+def downgrade() -> None:
+    op.create_table(
+        "old_table",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(50)),
+        sa.PrimaryKeyConstraint("id"),
+    )
+```
+
+## Production Migration Strategy
+
+The boilerplate adds a hard guard against accidental production migrations: with `ENVIRONMENT=production`, Alembic refuses to run unless `CONFIRM_PRODUCTION_MIGRATION=yes` is set.
+
+```bash
+# Production migration — explicit confirmation required
+ENVIRONMENT=production CONFIRM_PRODUCTION_MIGRATION=yes uv run alembic upgrade head
+```
+
+### Recommended Flow
+
+1. **Develop and test the migration locally** against a copy of production data
+2. **Deploy code with the new migration files** to staging
+3. **Back up the staging database**:
+    ```bash
+    pg_dump -h staging-db -U user dbname > staging_backup_$(date +%Y%m%d_%H%M%S).sql
+    ```
+4. **Apply against staging** and run a smoke test
+5. **Schedule a maintenance window** if the migration is destructive
+6. **Back up production**:
+    ```bash
+    pg_dump -h prod-db -U user dbname > prod_backup_$(date +%Y%m%d_%H%M%S).sql
+    ```
+7. **Apply against production** with the explicit confirmation env var
+8. **Watch logs and metrics** post-migration
+
+### Docker Migration Job
+
+The `migrate` stage in `backend/Dockerfile` exists for this. It runs `alembic upgrade head` and exits:
+
+```yaml
+# In your compose / orchestrator config
+services:
+  migrate:
+    build:
+      context: ./backend
+      target: migrate
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - db
+```
+
+Run it as a one-shot job before starting the app:
+
+```bash
+docker compose run --rm migrate
+```
+
+## Best Practices
+
+### Always review autogenerated migrations
+Autogenerate misses enum changes, server-side defaults, certain constraint renames, and computed columns.
+
+### Use descriptive messages
+```bash
+# Good
+uv run alembic revision --autogenerate -m "Add user.email_verified"
+
+# Less useful three months later
+uv run alembic revision --autogenerate -m "Update user model"
+```
+
+### Adding a non-nullable column to a populated table
+Do it in three steps in the same migration:
+
+```python
+def upgrade() -> None:
+    op.add_column("user", sa.Column("phone", sa.String(20), nullable=True))
+    op.execute("UPDATE \"user\" SET phone = ''")
+    op.alter_column("user", "phone", nullable=False)
+```
+
+### Test downgrades
+
+```bash
+uv run alembic downgrade -1
+uv run alembic upgrade head
+```
+
+If the down step blows up, fix it before merging the migration.
+
+### Don't commit auto-generated `.pyc` files
+The `migrations/versions/` directory should only contain hand-written `.py` files. Alembic does not track `.pyc`.
+
+## Troubleshooting
+
+### "Target database is not up to date"
+You created a new revision but the database is one or more revisions behind. Run `uv run alembic upgrade head` first, then generate the new revision.
+
+### "Multiple heads detected"
+Two branches both added migrations from the same parent. Merge them:
+
+```bash
+uv run alembic merge -m "merge heads" <head1> <head2>
+```
+
+### Autogenerate produces an empty migration
+You haven't actually changed the schema — or `target_metadata` doesn't see your model. Check that the new module is importable from `src.modules` (the auto-importer in `env.py` walks that package).
+
+### Migration applies in dev but fails in prod
+Common causes: data the dev DB doesn't have (e.g. an unindexed column with NULLs you tried to make NOT NULL), different Postgres versions, or extensions installed only in one environment. Always test against production-like data.
+
+## Next Steps
+
+- **[CRUD Operations](crud.md)** — Use the migrated schema
+- **[API Endpoints](../api/endpoints.md)** — Build endpoints on the new model
+- **[Production](../production.md)** — Production deployment guide

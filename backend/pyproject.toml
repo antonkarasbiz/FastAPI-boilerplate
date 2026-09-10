@@ -1,0 +1,133 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fastapi-boilerplate"
+version = "0.19.0"
+description = "Modular FastAPI starter — vertical slices, swappable infrastructure, plugin-ready."
+authors = [{ name = "Benav Labs", email = "contact@benav.io" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aiomcache>=0.8.2",
+    "aiosqlite>=0.21.0",
+    "alembic>=1.16.4",
+    "asyncpg>=0.30.0",
+    "crudauth[all]>=0.6.0,<0.7.0",
+    "faker>=37.1.0",
+    "fastapi[standard]>=0.115.8",
+    "fastcrud>=0.21.0",
+    "greenlet>=3.1.1",
+    "httpx>=0.28.1",
+    "itsdangerous>=2.2.0",
+    "jinja2>=3.1.6",
+    "pydantic>=2.10.6",
+    "pydantic-settings>=2.7.1",
+    "redis>=6.1.0",
+    "sqladmin>=0.22.0",
+    "sqlalchemy>=2.0.37",
+    "taskiq>=0.11.20",
+    "taskiq-redis>=1.1.2",
+    "taskiq-aio-pika>=0.4.3",
+    "user-agents>=2.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.14.1",
+    "ruff>=0.9.4",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.25.3",
+    "pytest-mock>=3.14.0",
+    "testcontainers[postgres]>=4.10.0",
+    "pytest-xdist[psutil]>=3.8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+asyncio_mode = "auto"
+addopts = ["-v", "--strict-markers", "--tb=short", "--disable-warnings"]
+env = ["ENVIRONMENT=pytest", "PYTEST_CURRENT_TEST=true"]
+markers = [
+    "unit: Unit tests that don't require external dependencies",
+    "integration: Integration tests that may require external services",
+    "asyncio: Tests that use asyncio",
+    "slow: marks tests as slow running",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "aiomcache"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "user_agents"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sqladmin"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sqladmin.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "wtforms.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sqlalchemy.ext.asyncio"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "taskiq"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "taskiq.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "taskiq_redis"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "taskiq_aio_pika"
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 128
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+extend-select = ["UP006", "UP007", "UP035", "UP039", "PLC0415"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
